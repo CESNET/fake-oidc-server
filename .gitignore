@@ -1,0 +1,15 @@
+# Ignore Java project files #
+*.class
+*.jar
+*.war
+*.ear
+
+**/target
+dependency-reduced-pom.xml
+
+# Ignore IntelliJ project files #
+
+*.iml
+*.ipr
+*.iws
+.idea/
