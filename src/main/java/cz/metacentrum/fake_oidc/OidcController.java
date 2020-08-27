@@ -40,7 +40,6 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -68,7 +67,7 @@ public class OidcController {
     private Map<String, AccessTokenInfo> accessTokens = new HashMap<>();
 
     @Autowired
-    private FakeOidcProperties fakeOidcProperties;
+    private FakeOidcServerProperties serverProperties;
 
     @PostConstruct
     public void init() throws IOException, ParseException, JOSEException {
@@ -78,7 +77,7 @@ public class OidcController {
         signer = new RSASSASigner((RSAKey) key);
         publicJWKSet = jwkSet.toPublicJWKSet();
         jwsHeader = new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(key.getKeyID()).build();
-        log.info("config {}", fakeOidcProperties);
+        log.info("config {}", serverProperties);
     }
 
     @RequestMapping(value = METADATA_ENDPOINT, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
@@ -175,7 +174,7 @@ public class OidcController {
             String[] creds = new String(Base64.getDecoder().decode(auth.split(" ")[1])).split(":", 2);
             String logname = creds[0];
             String password = creds[1];
-            User user = fakeOidcProperties.getUser();
+            User user = serverProperties.getUser();
             if (user.getLogname().equals(logname) && user.getPassword().equals(password)) {
                 log.info("password for user {} is correct", logname);
                 String iss = uriBuilder.replacePath("/").build().encode().toUriString();
@@ -197,7 +196,7 @@ public class OidcController {
 
     private String createAccessToken(String iss, User user, String client_id, String scope) throws JOSEException {
         // create JWT claims
-        Date expiration = new Date(System.currentTimeMillis() + fakeOidcProperties.getTokenExpirationSeconds() * 1000L);
+        Date expiration = new Date(System.currentTimeMillis() + serverProperties.getTokenExpirationSeconds() * 1000L);
         JWTClaimsSet jwtClaimsSet = new JWTClaimsSet.Builder()
                 .subject(user.getSub())
                 .issuer(iss)
@@ -230,7 +229,7 @@ public class OidcController {
                 .issuer(iss)
                 .audience(client_id)
                 .issueTime(new Date())
-                .expirationTime(new Date(System.currentTimeMillis() + fakeOidcProperties.getTokenExpirationSeconds() * 1000L))
+                .expirationTime(new Date(System.currentTimeMillis() + serverProperties.getTokenExpirationSeconds() * 1000L))
                 .jwtID(UUID.randomUUID().toString())
                 .claim("nonce", nonce)
                 .claim("at_hash", encodedHash)

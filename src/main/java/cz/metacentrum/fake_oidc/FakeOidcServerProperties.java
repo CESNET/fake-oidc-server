@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @ConfigurationProperties(prefix="oidc")
-public class FakeOidcProperties {
+public class FakeOidcServerProperties {
 
     private User user;
     private long tokenExpirationSeconds;

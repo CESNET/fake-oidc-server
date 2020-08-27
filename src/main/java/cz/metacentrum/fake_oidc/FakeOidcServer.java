@@ -4,10 +4,10 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class FakeOidcApplication {
+public class FakeOidcServer {
 
 	public static void main(String[] args) {
-		SpringApplication.run(FakeOidcApplication.class, args);
+		SpringApplication.run(FakeOidcServer.class, args);
 	}
 
 }
