@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 public class FakeOidcProperties {
 
     private User user;
+    private long tokenExpirationSeconds;
 
     public User getUser() {
         return user;
@@ -17,10 +18,19 @@ public class FakeOidcProperties {
         this.user = user;
     }
 
+    public long getTokenExpirationSeconds() {
+        return tokenExpirationSeconds;
+    }
+
+    public void setTokenExpirationSeconds(long tokenExpirationSeconds) {
+        this.tokenExpirationSeconds = tokenExpirationSeconds;
+    }
+
     @Override
     public String toString() {
         return "FakeOidcProperties{" +
                 "user=" + user +
+                ", tokenExpirationSeconds=" + tokenExpirationSeconds +
                 '}';
     }
 }

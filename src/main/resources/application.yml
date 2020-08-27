@@ -12,6 +12,7 @@ server:
     key-store: classpath:keystore.p12
     key-store-password: password
 oidc:
+  tokenExpirationSeconds: 36000
   user:
     logname: "perun"
     password: "test"

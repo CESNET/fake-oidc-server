@@ -47,7 +47,7 @@ import java.util.UUID;
 /**
  * Run with "mvn spring-boot:run".
  * <p>
- * Provides OIDC metadata. Seet the spec at https://openid.net/specs/openid-connect-discovery-1_0.html
+ * Provides OIDC metadata. See the spec at https://openid.net/specs/openid-connect-discovery-1_0.html
  */
 @RestController
 public class OidcController {
@@ -59,7 +59,7 @@ public class OidcController {
     public static final String TOKEN_ENDPOINT = "/token";
     public static final String USERINFO_ENDPOINT = "/userinfo";
     public static final String JWKS_ENDPOINT = "/jwks";
-    public static final String INTROSPECTION_ENDPOINT = "/introspection";
+    public static final String INTROSPECTION_ENDPOINT = "/introspect";
 
     private JWSSigner signer;
     private JWKSet publicJWKSet;
@@ -84,7 +84,7 @@ public class OidcController {
     @RequestMapping(value = METADATA_ENDPOINT, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
     @CrossOrigin
     public ResponseEntity<?> metadata(UriComponentsBuilder uriBuilder, HttpServletRequest req) {
-        log.info(METADATA_ENDPOINT + " from {}", req.getRemoteHost());
+        log.info("called " + METADATA_ENDPOINT + " from {}", req.getRemoteHost());
         String urlPrefix = uriBuilder.replacePath(null).build().encode().toUriString();
         Map<String, Object> m = new LinkedHashMap<>();
         // https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata
@@ -104,15 +104,15 @@ public class OidcController {
 
     @RequestMapping(value = JWKS_ENDPOINT, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
     @CrossOrigin
-    public ResponseEntity<String> jwks() {
-        log.info("/jwks");
+    public ResponseEntity<String> jwks(HttpServletRequest req) {
+        log.info("called " + JWKS_ENDPOINT + " from {}", req.getRemoteHost());
         return ResponseEntity.ok().body(publicJWKSet.toString());
     }
 
     @RequestMapping(value = USERINFO_ENDPOINT, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
     @CrossOrigin(allowedHeaders = {"Authorization", "Content-Type"})
-    public ResponseEntity<?> userinfo(@RequestHeader("Authorization") String auth) {
-        log.info("/userinfo");
+    public ResponseEntity<?> userinfo(@RequestHeader("Authorization") String auth, HttpServletRequest req) {
+        log.info("called " + USERINFO_ENDPOINT + " from {}", req.getRemoteHost());
         if (!auth.startsWith("Bearer ")) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("No token");
         }
@@ -134,17 +134,24 @@ public class OidcController {
 
     @RequestMapping(value = INTROSPECTION_ENDPOINT, method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> introspection(@RequestParam String token,
-                                           @RequestHeader("Authorization") String auth) {
-        log.info("/introspection auth = {} token= {}", auth, token);
+                                           @RequestHeader("Authorization") String auth,
+                                           UriComponentsBuilder uriBuilder,
+                                           HttpServletRequest req) {
+        log.info("called " + INTROSPECTION_ENDPOINT + " from {}", req.getRemoteHost());
         Map<String, Object> m = new LinkedHashMap<>();
         AccessTokenInfo accessTokenInfo = accessTokens.get(token);
         if( accessTokenInfo == null) {
+            log.error("token not found in memory: {}", token);
             m.put("active", false);
         } else {
+            String scopes = String.join(" ", accessTokenInfo.scopes);
+            log.info("token found, releasing scopes: {}", scopes);
+            m.put("iss", uriBuilder.replacePath(null).build().encode().toUriString() + "/");
             m.put("active", true);
-            m.put("scope", String.join(" ", accessTokenInfo.scopes));
+            m.put("scope", scopes);
             m.put("username", accessTokenInfo.user.getSub());
             m.put("sub", accessTokenInfo.user.getSub());
+            m.put("exp", accessTokenInfo.expiration.toInstant().toEpochMilli());
         }
         return ResponseEntity.ok().body(m);
     }
@@ -157,8 +164,10 @@ public class OidcController {
                                        @RequestParam String state,
                                        @RequestParam String nonce,
                                        @RequestHeader(name = "Authorization", required = false) String auth,
-                                       UriComponentsBuilder uriBuilder) throws JOSEException, NoSuchAlgorithmException {
-        log.info("/authorize scope={} response_type={} client_id={} redirect_uri={}", scope, response_type, client_id, redirect_uri);
+                                       UriComponentsBuilder uriBuilder,
+                                       HttpServletRequest req) throws JOSEException, NoSuchAlgorithmException {
+        log.info("called " + AUTHORIZATION_ENDPOINT+" from {}, scope={} response_type={} client_id={} redirect_uri={}",
+                req.getRemoteHost(), scope, response_type, client_id, redirect_uri);
         if (auth == null) {
             log.info("user and password not provided");
             return response401();
@@ -168,9 +177,8 @@ public class OidcController {
             String password = creds[1];
             User user = fakeOidcProperties.getUser();
             if (user.getLogname().equals(logname) && user.getPassword().equals(password)) {
-                log.info("user {} correct", logname);
+                log.info("password for user {} is correct", logname);
                 String iss = uriBuilder.replacePath("/").build().encode().toUriString();
-                String sub = user.getSub();
                 String access_token = createAccessToken(iss, user, client_id, scope);
                 String id_token = createIdToken(iss, user, client_id, nonce, access_token);
                 String url = redirect_uri + "#" +
@@ -189,7 +197,7 @@ public class OidcController {
 
     private String createAccessToken(String iss, User user, String client_id, String scope) throws JOSEException {
         // create JWT claims
-        Date expiration = new Date(System.currentTimeMillis() + 10 * 3600 * 1000L);
+        Date expiration = new Date(System.currentTimeMillis() + fakeOidcProperties.getTokenExpirationSeconds() * 1000L);
         JWTClaimsSet jwtClaimsSet = new JWTClaimsSet.Builder()
                 .subject(user.getSub())
                 .issuer(iss)
@@ -222,7 +230,7 @@ public class OidcController {
                 .issuer(iss)
                 .audience(client_id)
                 .issueTime(new Date())
-                .expirationTime(new Date(System.currentTimeMillis() + 10 * 3600 * 1000L))
+                .expirationTime(new Date(System.currentTimeMillis() + fakeOidcProperties.getTokenExpirationSeconds() * 1000L))
                 .jwtID(UUID.randomUUID().toString())
                 .claim("nonce", nonce)
                 .claim("at_hash", encodedHash)

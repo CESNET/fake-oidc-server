@@ -23,6 +23,10 @@ mvn package
 
 java -jar target/fake_oidc.jar
 ```
+or build and run from maven:
+```bash
+mvn spring-boot:run
+```
 
 By default the application runs at TCP port 8090, uses a self-signed certificate for localhost, and the only
 user has username "perun" and password "test". This can be changed by using command line options:
