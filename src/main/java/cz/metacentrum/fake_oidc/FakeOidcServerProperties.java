@@ -28,7 +28,7 @@ public class FakeOidcServerProperties {
 
     @Override
     public String toString() {
-        return "FakeOidcProperties{" +
+        return "FakeOidcServerProperties{" +
                 "user=" + user +
                 ", tokenExpirationSeconds=" + tokenExpirationSeconds +
                 '}';
