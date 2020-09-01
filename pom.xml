@@ -9,7 +9,7 @@
 	</parent>
 	<groupId>cz.metacentrum</groupId>
 	<artifactId>fake_oidc</artifactId>
-	<version>1.0</version>
+	<version>1.1</version>
 	<name>fake_oidc</name>
 	<description>Fake OpenId Connect Authorization Server</description>
 

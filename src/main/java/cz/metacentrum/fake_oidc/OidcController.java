@@ -99,6 +99,7 @@ public class OidcController {
         String urlPrefix = uriBuilder.replacePath(null).build().encode().toUriString();
         Map<String, Object> m = new LinkedHashMap<>();
         // https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata
+        // https://tools.ietf.org/html/rfc8414#section-2
         m.put("issuer", urlPrefix + "/"); // REQUIRED
         m.put("authorization_endpoint", urlPrefix + AUTHORIZATION_ENDPOINT); // REQUIRED
         m.put("token_endpoint", urlPrefix + TOKEN_ENDPOINT); // REQUIRED unless only the Implicit Flow is used
@@ -107,9 +108,11 @@ public class OidcController {
         m.put("introspection_endpoint", urlPrefix + INTROSPECTION_ENDPOINT);
         m.put("scopes_supported", Arrays.asList("openid", "profile", "email")); // RECOMMENDED
         m.put("response_types_supported", Arrays.asList("id_token token", "code")); // REQUIRED
+        m.put("grant_types_supported", Arrays.asList("authorization_code", "implicit")); //OPTIONAL
         m.put("subject_types_supported", Collections.singletonList("public")); // REQUIRED
         m.put("id_token_signing_alg_values_supported", Arrays.asList("RS256", "none")); // REQUIRED
         m.put("claims_supported", Arrays.asList("sub", "iss", "name", "family_name", "given_name", "preferred_username", "email"));
+        m.put("code_challenge_methods_supported", Arrays.asList("plain", "S256")); // PKCE support advertised
         return ResponseEntity.ok().body(m);
     }
 
