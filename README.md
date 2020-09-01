@@ -9,11 +9,15 @@ a real OIDC server is deployed.
 
 This fake server has the following features:
 * it is implemented in Java as Spring Boot application
-* implements **Implicit Grant flow** (for JavaScript clients)
+* implements the following grant types:
+  * **Implicit Grant flow** (for JavaScript clients - deprecated)
+  * **Authorization Code flow with Proof Key for Code Exchange** (for JavaScript clients - recommended)
+  * **Authorization Code flow without PKCE** (for web server clients)
 * provides the following endpoints:
   * /.well-known/openid-configuration providing metadata
   * /jwks providing JSON Web Key Set for validating cryptographic signature of id_token
   * /authorize which uses HTTP Basic Auth for asking for username and password
+  * /token for exchanging authorization code for access token
   * /userinfo that provides data about the user
   * /introspection that provides access token introspection
 
@@ -22,10 +26,6 @@ Build and run it with:
 mvn package
 
 java -jar target/fake_oidc.jar
-```
-or build and run from maven:
-```bash
-mvn spring-boot:run
 ```
 
 By default the application runs at TCP port 8090, uses a self-signed certificate for localhost, and the only

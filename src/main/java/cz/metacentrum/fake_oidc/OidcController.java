@@ -18,6 +18,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.Base64Utils;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -33,6 +34,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Base64;
@@ -67,6 +69,8 @@ public class OidcController {
     private JWSHeader jwsHeader;
 
     private final Map<String, AccessTokenInfo> accessTokens = new HashMap<>();
+    private final Map<String, CodeInfo> authorizationCodes = new HashMap<>();
+    private final SecureRandom random = new SecureRandom();
 
     private final FakeOidcServerProperties serverProperties;
 
@@ -102,7 +106,7 @@ public class OidcController {
         m.put("jwks_uri", urlPrefix + JWKS_ENDPOINT); // REQUIRED
         m.put("introspection_endpoint", urlPrefix + INTROSPECTION_ENDPOINT);
         m.put("scopes_supported", Arrays.asList("openid", "profile", "email")); // RECOMMENDED
-        m.put("response_types_supported", Collections.singletonList("id_token token")); // REQUIRED
+        m.put("response_types_supported", Arrays.asList("id_token token", "code")); // REQUIRED
         m.put("subject_types_supported", Collections.singletonList("public")); // REQUIRED
         m.put("id_token_signing_alg_values_supported", Arrays.asList("RS256", "none")); // REQUIRED
         m.put("claims_supported", Arrays.asList("sub", "iss", "name", "family_name", "given_name", "preferred_username", "email"));
@@ -124,17 +128,23 @@ public class OidcController {
      */
     @RequestMapping(value = USERINFO_ENDPOINT, method = RequestMethod.GET, produces = MediaType.APPLICATION_JSON_VALUE)
     @CrossOrigin(allowedHeaders = {"Authorization", "Content-Type"})
-    public ResponseEntity<?> userinfo(@RequestHeader("Authorization") String auth, HttpServletRequest req) {
+    public ResponseEntity<?> userinfo(@RequestHeader("Authorization") String auth,
+                                      @RequestParam(required = false) String access_token,
+                                      HttpServletRequest req) {
         log.info("called " + USERINFO_ENDPOINT + " from {}", req.getRemoteHost());
         if (!auth.startsWith("Bearer ")) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("No token");
+            if(access_token == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("No token");
+            }
+            auth = access_token;
+        } else {
+            auth = auth.substring(7);
         }
-        auth = auth.substring(7);
         AccessTokenInfo accessTokenInfo = accessTokens.get(auth);
         if (accessTokenInfo == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("access token not found");
         }
-        Set<String> scopes = new HashSet<>(Arrays.asList(accessTokenInfo.scope.split(" ")));
+        Set<String> scopes = setFromSpaceSeparatedString(accessTokenInfo.scope);
         Map<String, Object> m = new LinkedHashMap<>();
         User user = accessTokenInfo.user;
         m.put("sub", user.getSub());
@@ -179,6 +189,64 @@ public class OidcController {
     }
 
     /**
+     * Provides token endpoint.
+     */
+    @RequestMapping(value = TOKEN_ENDPOINT, method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
+    @CrossOrigin
+    public ResponseEntity<?> token(@RequestParam String grant_type,
+                                   @RequestParam String code,
+                                   @RequestParam String redirect_uri,
+                                   @RequestParam(required = false) String client_id,
+                                   @RequestParam(required = false) String code_verifier,
+                                   @RequestHeader(name = "Authorization", required = false) String auth,
+                                   UriComponentsBuilder uriBuilder,
+                                   HttpServletRequest req) throws NoSuchAlgorithmException, JOSEException {
+        log.info("called " + TOKEN_ENDPOINT + " from {}, grant_type={} code={} redirect_uri={} client_id={}", req.getRemoteHost(), grant_type, code, redirect_uri, client_id);
+        if (!"authorization_code".equals(grant_type)) {
+            return jsonError("unsupported_grant_type", "grant_type is not authorization_code");
+        }
+        CodeInfo codeInfo = authorizationCodes.get(code);
+        if (codeInfo == null) {
+            return jsonError("invalid_grant", "code not valid");
+        }
+        if (!redirect_uri.equals(codeInfo.redirect_uri)) {
+            return jsonError("invalid_request", "redirect_uri not valid");
+        }
+        if (codeInfo.codeChallenge != null) {
+            // check PKCE
+            if(code_verifier == null) {
+                return jsonError("invalid_request", "code_verifier missing");
+            }
+            if ("S256".equals(codeInfo.codeChallengeMethod)) {
+                MessageDigest s256 = MessageDigest.getInstance("SHA-256");
+                s256.reset();
+                s256.update(code_verifier.getBytes(StandardCharsets.UTF_8));
+                String hashedVerifier = Base64URL.encode(s256.digest()).toString();
+                if (!codeInfo.codeChallenge.equals(hashedVerifier)) {
+                    log.warn("code_verifier {} hashed using S256 to {} does not match code_challenge {}", code_verifier, hashedVerifier, codeInfo.codeChallenge);
+                    return jsonError("invalid_request", "code_verifier not correct");
+                }
+                log.info("code_verifier OK");
+            } else {
+                if (!codeInfo.codeChallenge.equals(code_verifier)) {
+                    log.warn("code_verifier {} does not match code_challenge {}", code_verifier, codeInfo.codeChallenge);
+                    return jsonError("invalid_request", "code_verifier not correct");
+                }
+            }
+        }
+        // return access token
+        Map<String, String> map = new LinkedHashMap<>();
+        String accessToken = createAccessToken(codeInfo.iss, codeInfo.user, codeInfo.client_id, codeInfo.scope);
+        map.put("access_token", accessToken);
+        map.put("token_type", "Bearer");
+        map.put("expires_in", String.valueOf(serverProperties.getTokenExpirationSeconds()));
+        map.put("scope", codeInfo.scope);
+        map.put("id_token", createIdToken(codeInfo.iss, codeInfo.user, codeInfo.client_id, codeInfo.nonce, accessToken));
+        return ResponseEntity.ok(map);
+    }
+
+
+    /**
      * Provides authorization endpoint.
      */
     @RequestMapping(value = AUTHORIZATION_ENDPOINT, method = RequestMethod.GET)
@@ -187,7 +255,10 @@ public class OidcController {
                                        @RequestParam String response_type,
                                        @RequestParam String scope,
                                        @RequestParam String state,
-                                       @RequestParam String nonce,
+                                       @RequestParam(required = false) String nonce,
+                                       @RequestParam(required = false) String code_challenge,
+                                       @RequestParam(required = false) String code_challenge_method,
+                                       @RequestParam(required = false) String response_mode,
                                        @RequestHeader(name = "Authorization", required = false) String auth,
                                        UriComponentsBuilder uriBuilder,
                                        HttpServletRequest req) throws JOSEException, NoSuchAlgorithmException {
@@ -203,21 +274,46 @@ public class OidcController {
             User user = serverProperties.getUser();
             if (user.getLogname().equals(login) && user.getPassword().equals(password)) {
                 log.info("password for user {} is correct", login);
+                Set<String> responseType = setFromSpaceSeparatedString(response_type);
                 String iss = uriBuilder.replacePath("/").build().encode().toUriString();
-                String access_token = createAccessToken(iss, user, client_id, scope);
-                String id_token = createIdToken(iss, user, client_id, nonce, access_token);
-                String url = redirect_uri + "#" +
-                        "access_token=" + urlencode(access_token) +
-                        "&token_type=Bearer" +
-                        "&state=" + urlencode(state) +
-                        "&expires_in=" + serverProperties.getTokenExpirationSeconds() +
-                        "&id_token=" + urlencode(id_token);
-                return ResponseEntity.status(HttpStatus.FOUND).header("Location", url).build();
+                if (responseType.contains("token")) {
+                    // implicit flow
+                    log.info("using implicit flow");
+                    String access_token = createAccessToken(iss, user, client_id, scope);
+                    String id_token = createIdToken(iss, user, client_id, nonce, access_token);
+                    String url = redirect_uri + "#" +
+                            "access_token=" + urlencode(access_token) +
+                            "&token_type=Bearer" +
+                            "&state=" + urlencode(state) +
+                            "&expires_in=" + serverProperties.getTokenExpirationSeconds() +
+                            "&id_token=" + urlencode(id_token);
+                    return ResponseEntity.status(HttpStatus.FOUND).header("Location", url).build();
+                } else if (responseType.contains("code")) {
+                    // authorization code flow
+                    log.info("using authorization code flow {}", code_challenge!=null ? "with PKCE" : "");
+                    String code = createAuthorizationCode(code_challenge, code_challenge_method, client_id, redirect_uri, user, iss, scope, nonce);
+                    String url = redirect_uri + "?" +
+                            "code=" + code +
+                            "&state=" + urlencode(state);
+                    return ResponseEntity.status(HttpStatus.FOUND).header("Location", url).build();
+                } else {
+                    String url = redirect_uri + "#" + "error=unsupported_response_type";
+                    return ResponseEntity.status(HttpStatus.FOUND).header("Location", url).build();
+                }
             } else {
                 log.info("wrong user and password combination");
                 return response401();
             }
         }
+    }
+
+    private String createAuthorizationCode(String code_challenge, String code_challenge_method, String client_id, String redirect_uri, User user, String iss, String scope, String nonce) {
+        byte[] bytes = new byte[16];
+        random.nextBytes(bytes);
+        String code = Base64URL.encode(bytes).toString();
+        log.info("issuing code={}", code);
+        authorizationCodes.put(code, new CodeInfo(code_challenge, code_challenge_method, code, client_id, redirect_uri, user, iss, scope, nonce));
+        return code;
     }
 
     private String createAccessToken(String iss, User user, String client_id, String scope) throws JOSEException {
@@ -297,4 +393,42 @@ public class OidcController {
         }
 
     }
+
+    private static class CodeInfo {
+        final String codeChallenge;
+        final String codeChallengeMethod;
+        final String code;
+        final String client_id;
+        final String redirect_uri;
+        final User user;
+        final String iss;
+        final String scope;
+        final String nonce;
+
+        public CodeInfo(String codeChallenge, String codeChallengeMethod, String code, String client_id, String redirect_uri, User user, String iss, String scope, String nonce) {
+            this.codeChallenge = codeChallenge;
+            this.codeChallengeMethod = codeChallengeMethod;
+            this.code = code;
+            this.client_id = client_id;
+            this.redirect_uri = redirect_uri;
+            this.user = user;
+            this.iss = iss;
+            this.scope = scope;
+            this.nonce = nonce;
+        }
+    }
+
+    private static Set<String> setFromSpaceSeparatedString(String s) {
+        if (s == null || s.isBlank()) return Collections.emptySet();
+        return new HashSet<>(Arrays.asList(s.split(" ")));
+    }
+
+    private static ResponseEntity<?> jsonError(String error, String error_description) {
+        log.warn("error={} error_description={}", error, error_description);
+        Map<String, String> map = new LinkedHashMap<>();
+        map.put("error", error);
+        map.put("error_description", error_description);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(map);
+    }
+
 }
