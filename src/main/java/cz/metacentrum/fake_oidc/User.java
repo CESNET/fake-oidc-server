@@ -1,5 +1,7 @@
 package cz.metacentrum.fake_oidc;
 
+import java.util.Arrays;
+
 public class User {
     private String logname;
     private String password;
@@ -9,6 +11,7 @@ public class User {
     private String family_name;
     private String email;
     private String preferred_username;
+    private String[] entitlement;
 
     public String getLogname() {
         return logname;
@@ -66,6 +69,14 @@ public class User {
         this.email = email;
     }
 
+    public String[] getEntitlement() {
+        return entitlement;
+    }
+
+    public void setEntitlement(String[] entitlement) {
+        this.entitlement = entitlement;
+    }
+
     public String getPreferred_username() {
         return preferred_username;
     }
@@ -73,6 +84,8 @@ public class User {
     public void setPreferred_username(String preferred_username) {
         this.preferred_username = preferred_username;
     }
+    
+    
 
     @Override
     public String toString() {
@@ -85,6 +98,7 @@ public class User {
                 ", family_name='" + family_name + '\'' +
                 ", email='" + email + '\'' +
                 ", preferred_username='" + preferred_username + '\'' +
+                ", eduPersonEntitlement='" + Arrays.toString(entitlement) + '\'' +
                 '}';
     }
 }

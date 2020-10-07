@@ -22,3 +22,6 @@ oidc:
     family_name: "Perun"
     preferred_username: "perun"
     email: "perun@cesnet.cz"
+    entitlement: 
+      - urn:geant:cesnet.cz:group:einfra#perun.cesnet.cz
+      - urn:geant:cesnet.cz:group:einfra:members#perun.cesnet.cz
