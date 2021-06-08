@@ -160,6 +160,9 @@ public class OidcController {
         if (scopes.contains("email")) {
             m.put("email", user.getEmail());
         }
+        if (scopes.contains("eduperson_entitlement")) {
+        	m.put("eduPersonEntitlement", user.getEntitlement());
+        }
         return ResponseEntity.ok().body(m);
     }
 
