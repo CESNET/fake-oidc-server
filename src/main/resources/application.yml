@@ -1,7 +1,7 @@
 # every value can be changed from command line by preceding the option with --
 # see https://docs.spring.io/spring-boot/docs/current/reference/html/spring-boot-features.html#boot-features-external-config-command-line-args
 # example:
-#   target/fake_oidc_server.jar --server.port=8100 -server.ssl.key-store=mykeystore.p12 --oidc.user.password=bflmpsvz
+#   target/fake_oidc_server.jar --server.port=8100 -server.ssl.key-store=mykeystore.p12  --oidc.users.makub.password=bflmpsvz
 
 server:
   port: 8090
@@ -14,19 +14,15 @@ server:
 oidc:
   tokenExpirationSeconds: 36000
   users:
-    - logname: "perun"
+    perun:
       password: "test"
       sub: "perun1"
-      name: "Master Perun"
       given_name: "Master"
       family_name: "Perun"
-      preferred_username: "perun"
       email: "perun@cesnet.cz"
-    - logname: "makub"
+    makub:
       password: "test"
       sub: "makub1"
-      name: "Martin Kuba"
-      given_name: "Kuba"
-      family_name: "Martin"
-      preferred_username: "makub"
+      given_name: "Martin"
+      family_name: "Kuba"
       email: "makub@ics.muni.cz"

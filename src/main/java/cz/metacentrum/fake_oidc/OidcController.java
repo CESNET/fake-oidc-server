@@ -274,8 +274,7 @@ public class OidcController {
             String[] creds = new String(Base64.getDecoder().decode(auth.split(" ")[1])).split(":", 2);
             String login = creds[0];
             String password = creds[1];
-            List<User> users = serverProperties.getUsers();
-            for (User user : users) {
+            for (User user : serverProperties.getUsers().values()) {
                 if (user.getLogname().equals(login) && user.getPassword().equals(password)) {
                     log.info("password for user {} is correct", login);
                     Set<String> responseType = setFromSpaceSeparatedString(response_type);

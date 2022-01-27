@@ -26,20 +26,21 @@ Build and run it with:
 ```bash
 mvn package
 
-java -jar target/fake_oidc.jar
+target/fake_oidc_server.jar
 ```
 
-By default the application runs at TCP port 8090, uses a self-signed certificate for localhost, and the only
-user has username "perun" and password "test". This can be changed by using command line options:
+By default the application runs at TCP port 8090, uses a self-signed certificate for localhost, and there are
+two users with lognames "perun" and "makub", and passwords "test". This can be changed by using command line options:
  
 ```bash
-java -jar target/fake_oidc.jar \
-           --server.port=8100 \
-           --server.ssl.key-store=mykeystore.p12 \
-           --oidc.user.logname=john \
-           --oidc.user.password=bflmpsvz \
-           --oidc.user.sub=1@example.com \
-           --oidc.user.name="John Doe"
+target/fake_oidc_server.jar \
+   --server.port=8100 \
+   --server.ssl.key-store=mykeystore.p12 \
+   --oidc.users.john.password=bflmpsvz \
+   --oidc.users.john.sub=0001@example.com \
+   --oidc.users.john.email=john.doe@example.com \
+   --oidc.users.john.given_name="John" \
+   --oidc.users.john.family_name="Doe"
 ```  
 See all the available options in the file src/main/resources/application.yml
 
