@@ -3,12 +3,13 @@
 (c) 2020 Martin Kuba, CESNET
 
 This application implements an OpenID Connect (OIDC) Authorization Server (AS) that
-provides just one user. Its purpose is to provide a temporary OIDC AS that can be
+provides a constant set of users. Its original purpose was to provide a temporary OIDC AS that can be
 used after deployment of an OIDC client and an OIDC resource server to set them up before
-a real OIDC server is deployed.
+a real OIDC server is deployed. But it can be used for other purposes like testing.
 
 This fake server has the following features:
 * it is implemented in Java as Spring Boot application
+* is deployed as JAR file executable on Linux
 * implements the following grant types:
   * **Implicit Grant flow** (for JavaScript clients - deprecated)
   * **Authorization Code flow with Proof Key for Code Exchange** (for JavaScript clients - recommended)

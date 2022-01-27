@@ -18,7 +18,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.util.Base64Utils;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -43,6 +42,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -136,7 +136,7 @@ public class OidcController {
                                       HttpServletRequest req) {
         log.info("called " + USERINFO_ENDPOINT + " from {}", req.getRemoteHost());
         if (!auth.startsWith("Bearer ")) {
-            if(access_token == null) {
+            if (access_token == null) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("No token");
             }
             auth = access_token;
@@ -217,7 +217,7 @@ public class OidcController {
         }
         if (codeInfo.codeChallenge != null) {
             // check PKCE
-            if(code_verifier == null) {
+            if (code_verifier == null) {
                 return jsonError("invalid_request", "code_verifier missing");
             }
             if ("S256".equals(codeInfo.codeChallengeMethod)) {
@@ -274,39 +274,40 @@ public class OidcController {
             String[] creds = new String(Base64.getDecoder().decode(auth.split(" ")[1])).split(":", 2);
             String login = creds[0];
             String password = creds[1];
-            User user = serverProperties.getUser();
-            if (user.getLogname().equals(login) && user.getPassword().equals(password)) {
-                log.info("password for user {} is correct", login);
-                Set<String> responseType = setFromSpaceSeparatedString(response_type);
-                String iss = uriBuilder.replacePath("/").build().encode().toUriString();
-                if (responseType.contains("token")) {
-                    // implicit flow
-                    log.info("using implicit flow");
-                    String access_token = createAccessToken(iss, user, client_id, scope);
-                    String id_token = createIdToken(iss, user, client_id, nonce, access_token);
-                    String url = redirect_uri + "#" +
-                            "access_token=" + urlencode(access_token) +
-                            "&token_type=Bearer" +
-                            "&state=" + urlencode(state) +
-                            "&expires_in=" + serverProperties.getTokenExpirationSeconds() +
-                            "&id_token=" + urlencode(id_token);
-                    return ResponseEntity.status(HttpStatus.FOUND).header("Location", url).build();
-                } else if (responseType.contains("code")) {
-                    // authorization code flow
-                    log.info("using authorization code flow {}", code_challenge!=null ? "with PKCE" : "");
-                    String code = createAuthorizationCode(code_challenge, code_challenge_method, client_id, redirect_uri, user, iss, scope, nonce);
-                    String url = redirect_uri + "?" +
-                            "code=" + code +
-                            "&state=" + urlencode(state);
-                    return ResponseEntity.status(HttpStatus.FOUND).header("Location", url).build();
-                } else {
-                    String url = redirect_uri + "#" + "error=unsupported_response_type";
-                    return ResponseEntity.status(HttpStatus.FOUND).header("Location", url).build();
+            List<User> users = serverProperties.getUsers();
+            for (User user : users) {
+                if (user.getLogname().equals(login) && user.getPassword().equals(password)) {
+                    log.info("password for user {} is correct", login);
+                    Set<String> responseType = setFromSpaceSeparatedString(response_type);
+                    String iss = uriBuilder.replacePath("/").build().encode().toUriString();
+                    if (responseType.contains("token")) {
+                        // implicit flow
+                        log.info("using implicit flow");
+                        String access_token = createAccessToken(iss, user, client_id, scope);
+                        String id_token = createIdToken(iss, user, client_id, nonce, access_token);
+                        String url = redirect_uri + "#" +
+                                "access_token=" + urlencode(access_token) +
+                                "&token_type=Bearer" +
+                                "&state=" + urlencode(state) +
+                                "&expires_in=" + serverProperties.getTokenExpirationSeconds() +
+                                "&id_token=" + urlencode(id_token);
+                        return ResponseEntity.status(HttpStatus.FOUND).header("Location", url).build();
+                    } else if (responseType.contains("code")) {
+                        // authorization code flow
+                        log.info("using authorization code flow {}", code_challenge != null ? "with PKCE" : "");
+                        String code = createAuthorizationCode(code_challenge, code_challenge_method, client_id, redirect_uri, user, iss, scope, nonce);
+                        String url = redirect_uri + "?" +
+                                "code=" + code +
+                                "&state=" + urlencode(state);
+                        return ResponseEntity.status(HttpStatus.FOUND).header("Location", url).build();
+                    } else {
+                        String url = redirect_uri + "#" + "error=unsupported_response_type";
+                        return ResponseEntity.status(HttpStatus.FOUND).header("Location", url).build();
+                    }
                 }
-            } else {
-                log.info("wrong user and password combination");
-                return response401();
             }
+            log.info("wrong user and password combination");
+            return response401();
         }
     }
 

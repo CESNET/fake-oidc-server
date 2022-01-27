@@ -3,19 +3,21 @@ package cz.metacentrum.fake_oidc;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 @Component
 @ConfigurationProperties(prefix="oidc")
 public class FakeOidcServerProperties {
 
-    private User user;
+    private List<User> users;
     private long tokenExpirationSeconds;
 
-    public User getUser() {
-        return user;
+    public List<User> getUsers() {
+        return users;
     }
 
-    public void setUser(User user) {
-        this.user = user;
+    public void setUsers(List<User> users) {
+        this.users = users;
     }
 
     public long getTokenExpirationSeconds() {
@@ -29,7 +31,7 @@ public class FakeOidcServerProperties {
     @Override
     public String toString() {
         return "FakeOidcServerProperties{" +
-                "user=" + user +
+                "users=" + users +
                 ", tokenExpirationSeconds=" + tokenExpirationSeconds +
                 '}';
     }
