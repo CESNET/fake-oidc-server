@@ -41,6 +41,12 @@ target/fake_oidc_server.jar \
    --oidc.users.john.email=john.doe@example.com \
    --oidc.users.john.given_name="John" \
    --oidc.users.john.family_name="Doe"
-```  
+```
 See all the available options in the file src/main/resources/application.yml
+
+To disable SSL entirely you must disable the `ssl` spring profile. In order to do that you must overwrite the active profiles:
+
+```bash
+java -jar -Dspring.profiles.active=default target/fake_oidc_server.jar
+```
 
