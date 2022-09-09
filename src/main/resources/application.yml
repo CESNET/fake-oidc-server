@@ -5,12 +5,7 @@
 
 server:
   port: 8090
-  ssl:
-    key-store-type: pkcs12
-    # create your own keystore with:
-    #  openssl pkcs12 -export -name "mycert" -inkey key.pem -in cert.pem -certfile chain.pem -out mykeystore.p12
-    key-store: classpath:keystore.p12
-    key-store-password: password
+
 oidc:
   tokenExpirationSeconds: 36000
   users:
@@ -26,3 +21,17 @@ oidc:
       given_name: "Martin"
       family_name: "Kuba"
       email: "makub@ics.muni.cz"
+
+spring.profiles.active: ssl
+
+---
+ 
+spring.config.activate.on-profile : ssl
+
+server:
+  ssl:
+    key-store-type: pkcs12
+    # create your own keystore with:
+    #  openssl pkcs12 -export -name "mycert" -inkey key.pem -in cert.pem -certfile chain.pem -out mykeystore.p12
+    key-store: classpath:keystore.p12
+    key-store-password: password
