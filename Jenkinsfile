@@ -1,12 +1,11 @@
 pipeline {
-  agent {
-    docker { image 'maven:latest' }
-  }
+  agent any
   environment {
     DOCKER_TARGET = 'ssedevelopment/fake-oidc-server'
     DOCKER_REGISTRY = 'https://ghcr.io'
     JENKINS_DOCKER_CREDS = '2ad31065-44e1-4850-a3b1-548e17aa6757'
   }
+  tools { maven 'Maven 3.8.6' }
 
   stages {
  
