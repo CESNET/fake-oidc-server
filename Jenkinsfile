@@ -1,7 +1,7 @@
 pipeline {
   agent any
   environment {
-    DOCKER_TARGET = 'ssedevelopment/fake-oidc-server'
+    DOCKER_TARGET = 'e-learning-by-sse/infrastructure-fake-oidc'
     DOCKER_REGISTRY = 'https://ghcr.io'
     JENKINS_DOCKER_CREDS = '2ad31065-44e1-4850-a3b1-548e17aa6757'
   }
