@@ -357,7 +357,7 @@ public class OidcController {
                 .expirationTime(new Date(System.currentTimeMillis() + serverProperties.getTokenExpirationSeconds() * 1000L))
                 .jwtID(UUID.randomUUID().toString())
                 .claim("nonce", nonce)
-                .claim("at_hash", encodedHash)
+                .claim("at_hash", encodedHash.toString())
                 .build();
         // create JWT token
         SignedJWT myToken = new SignedJWT(jwsHeader, jwtClaimsSet);
