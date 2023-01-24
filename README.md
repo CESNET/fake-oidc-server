@@ -76,7 +76,7 @@ The default accounts are:
 We provide a docker image to run the application easly. Since the image was built via spring, all spring configuration can be set via environment variables. For example:
 
 ```
-$  docker run ghcr.io/e-learning-by-sse/infrastructure-fake-oidc:latest -e SPRING_PROFILES_ACTIVE='default' -p 8090:8090
+$  docker run -e SPRING_PROFILES_ACTIVE='default' -p 8090:8090 ghcr.io/e-learning-by-sse/infrastructure-fake-oidc:latest 
 ```
 
 An example to define a set of users inside a docker-compose file:
