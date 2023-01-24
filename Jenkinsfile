@@ -2,7 +2,7 @@ pipeline {
   agent { label 'maven' }
 
   environment {
-    DOCKER_TARGET = 'ghcr.io/e-learning-by-sse/infrastructure-fake-oidc'
+    DOCKER_TARGET = 'ghcr.io/e-learning-by-sse/infrastructure-fake-oidc:latest'
   }
   
   stages {
@@ -25,7 +25,7 @@ pipeline {
             image = docker.image("${env.DOCKER_TARGET}")
             docker.withRegistry('https://ghcr.io', 'github-ssejenkins') {
               image.push("${version}")
-              image.push('latest')
+              image.push()
             }
           }
       }
