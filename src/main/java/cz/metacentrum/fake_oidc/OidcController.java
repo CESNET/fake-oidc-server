@@ -1,16 +1,26 @@
 package cz.metacentrum.fake_oidc;
 
-import com.nimbusds.jose.JOSEException;
-import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.JWSSigner;
-import com.nimbusds.jose.crypto.RSASSASigner;
-import com.nimbusds.jose.jwk.JWK;
-import com.nimbusds.jose.jwk.JWKSet;
-import com.nimbusds.jose.jwk.RSAKey;
-import com.nimbusds.jose.util.Base64URL;
-import com.nimbusds.jwt.JWTClaimsSet;
-import com.nimbusds.jwt.SignedJWT;
+import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.text.ParseException;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+
+import javax.annotation.PostConstruct;
+import javax.servlet.http.HttpServletRequest;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,26 +36,18 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import javax.annotation.PostConstruct;
-import javax.servlet.http.HttpServletRequest;
-import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
-import java.text.ParseException;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.JWSSigner;
+import com.nimbusds.jose.crypto.RSASSASigner;
+import com.nimbusds.jose.jwk.JWK;
+import com.nimbusds.jose.jwk.JWKSet;
+import com.nimbusds.jose.jwk.RSAKey;
+import com.nimbusds.jose.util.Base64URL;
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.JWTClaimsSet.Builder;
+import com.nimbusds.jwt.SignedJWT;
 
 /**
  * Implementation of all necessary OIDC endpoints.
@@ -149,7 +151,7 @@ public class OidcController {
         }
         Set<String> scopes = setFromSpaceSeparatedString(accessTokenInfo.scope);
         Map<String, Object> m = new LinkedHashMap<>();
-        User user = accessTokenInfo.user;
+        User user = serverProperties.getUsers().get(accessTokenInfo.sub);
         m.put("sub", user.getSub());
         if (scopes.contains("profile")) {
             m.put("name", user.getName());
@@ -177,15 +179,15 @@ public class OidcController {
             log.error("token not found in memory: {}", token);
             m.put("active", false);
         } else {
-            log.info("found token for user {}, releasing scopes: {}", accessTokenInfo.user.getSub(), accessTokenInfo.scope);
+            log.info("found token for user {}, releasing scopes: {}", accessTokenInfo.sub, accessTokenInfo.scope);
             // see https://tools.ietf.org/html/rfc7662#section-2.2 for all claims
             m.put("active", true);
             m.put("scope", accessTokenInfo.scope);
             m.put("client_id", accessTokenInfo.clientId);
-            m.put("username", accessTokenInfo.user.getSub());
+            m.put("username", accessTokenInfo.sub);
             m.put("token_type", "Bearer");
             m.put("exp", accessTokenInfo.expiration.toInstant().toEpochMilli());
-            m.put("sub", accessTokenInfo.user.getSub());
+            m.put("sub", accessTokenInfo.sub);
             m.put("iss", accessTokenInfo.iss);
         }
         return ResponseEntity.ok().body(m);
@@ -197,17 +199,33 @@ public class OidcController {
     @RequestMapping(value = TOKEN_ENDPOINT, method = RequestMethod.POST, produces = MediaType.APPLICATION_JSON_VALUE)
     @CrossOrigin
     public ResponseEntity<?> token(@RequestParam String grant_type,
-                                   @RequestParam String code,
-                                   @RequestParam String redirect_uri,
+                                   @RequestParam(required = false) String code,
+                                   @RequestParam(required = false) String redirect_uri,
                                    @RequestParam(required = false) String client_id,
+                                   @RequestParam(required = false) String client_secret,
                                    @RequestParam(required = false) String code_verifier,
                                    @RequestHeader(name = "Authorization", required = false) String auth,
                                    UriComponentsBuilder uriBuilder,
                                    HttpServletRequest req) throws NoSuchAlgorithmException, JOSEException {
-        log.info("called " + TOKEN_ENDPOINT + " from {}, grant_type={} code={} redirect_uri={} client_id={}", req.getRemoteHost(), grant_type, code, redirect_uri, client_id);
-        if (!"authorization_code".equals(grant_type)) {
-            return jsonError("unsupported_grant_type", "grant_type is not authorization_code");
+        log.info("called " + TOKEN_ENDPOINT + " from {}, grant_type={}", req.getRemoteHost(), grant_type);
+        
+        switch (grant_type) {
+        case "authorization_code":
+            log.info("code={} redirect_uri={} client_id={}", code, redirect_uri, client_id);
+            return tokenForAuthorizationCodeFlow(code, redirect_uri, client_id, code_verifier, auth, uriBuilder, req);
+            
+        case "client_credentials":
+            log.info("client_id={} client_secret={} auth={}", client_id, client_secret, auth);
+            return tokenForClientCredentialsFlow(client_id, client_secret, auth, uriBuilder, req);
+            
+        default:
+            return jsonError("unsupported_grant_type", "grant_type " + grant_type + " not supported");
         }
+    }
+    
+    private ResponseEntity<?> tokenForAuthorizationCodeFlow(String code, String redirect_uri, String client_id,
+            String code_verifier, String auth, UriComponentsBuilder uriBuilder, HttpServletRequest req)
+            throws NoSuchAlgorithmException, JOSEException {
         CodeInfo codeInfo = authorizationCodes.get(code);
         if (codeInfo == null) {
             return jsonError("invalid_grant", "code not valid");
@@ -239,7 +257,7 @@ public class OidcController {
         }
         // return access token
         Map<String, String> map = new LinkedHashMap<>();
-        String accessToken = createAccessToken(codeInfo.iss, codeInfo.user, codeInfo.client_id, codeInfo.scope);
+        String accessToken = createAccessToken(codeInfo.iss, codeInfo.user.getSub(), codeInfo.client_id, codeInfo.scope);
         map.put("access_token", accessToken);
         map.put("token_type", "Bearer");
         map.put("expires_in", String.valueOf(serverProperties.getTokenExpirationSeconds()));
@@ -247,8 +265,33 @@ public class OidcController {
         map.put("id_token", createIdToken(codeInfo.iss, codeInfo.user, codeInfo.client_id, codeInfo.nonce, accessToken));
         return ResponseEntity.ok(map);
     }
-
-
+    
+    private ResponseEntity<?> tokenForClientCredentialsFlow(String client_id, String client_secret, String auth,
+            UriComponentsBuilder uriBuilder, HttpServletRequest req)
+            throws NoSuchAlgorithmException, JOSEException {
+        
+        if (client_id == null || client_secret == null) {
+            if (auth != null) {
+                return jsonError("invalid_request", "client authentication via Authorization header not supported");
+            } else {
+                return jsonError("invalid_client", "neither client_id and client_secret nor Authorization header set");
+            }
+        }
+        
+        // TODO: check client_id and client_secret to hardcoded/configured values?
+        
+        // return access token
+        Map<String, String> map = new LinkedHashMap<>();
+        String iss = uriBuilder.replacePath("/").build().encode().toUriString();
+        String sub = client_id; // TODO?
+        String accessToken = createAccessToken(iss, sub, client_id, null);
+        map.put("access_token", accessToken);
+        map.put("token_type", "Bearer");
+        map.put("expires_in", String.valueOf(serverProperties.getTokenExpirationSeconds()));
+        return ResponseEntity.ok(map);
+    }
+    
+    
     /**
      * Provides authorization endpoint.
      */
@@ -282,7 +325,7 @@ public class OidcController {
                     if (responseType.contains("token")) {
                         // implicit flow
                         log.info("using implicit flow");
-                        String access_token = createAccessToken(iss, user, client_id, scope);
+                        String access_token = createAccessToken(iss, user.getSub(), client_id, scope);
                         String id_token = createIdToken(iss, user, client_id, nonce, access_token);
                         String url = redirect_uri + "#" +
                                 "access_token=" + urlencode(access_token) +
@@ -319,24 +362,26 @@ public class OidcController {
         return code;
     }
 
-    private String createAccessToken(String iss, User user, String client_id, String scope) throws JOSEException {
+    private String createAccessToken(String iss, String sub, String client_id, String scope) throws JOSEException {
         // create JWT claims
         Date expiration = new Date(System.currentTimeMillis() + serverProperties.getTokenExpirationSeconds() * 1000L);
-        JWTClaimsSet jwtClaimsSet = new JWTClaimsSet.Builder()
-                .subject(user.getSub())
+        Builder jwtClaimsSetBuilder = new JWTClaimsSet.Builder()
+                .subject(sub)
                 .issuer(iss)
                 .audience(client_id)
                 .issueTime(new Date())
                 .expirationTime(expiration)
-                .jwtID(UUID.randomUUID().toString())
-                .claim("scope", scope)
-                .build();
+                .jwtID(UUID.randomUUID().toString());
+        if (scope != null) {
+            jwtClaimsSetBuilder.claim("scope", scope);
+        }
+        JWTClaimsSet jwtClaimsSet = jwtClaimsSetBuilder.build();
         // create JWT token
         SignedJWT jwt = new SignedJWT(jwsHeader, jwtClaimsSet);
         // sign the JWT token
         jwt.sign(signer);
         String access_token = jwt.serialize();
-        accessTokens.put(access_token, new AccessTokenInfo(user, access_token, expiration, scope, client_id, iss));
+        accessTokens.put(access_token, new AccessTokenInfo(sub, access_token, expiration, scope, client_id, iss));
         return access_token;
     }
 
@@ -379,15 +424,15 @@ public class OidcController {
 
 
     private static class AccessTokenInfo {
-        final User user;
+        final String sub;
         final String accessToken;
         final Date expiration;
         final String scope;
         final String clientId;
         final String iss;
 
-        public AccessTokenInfo(User user, String accessToken, Date expiration, String scope, String clientId, String iss) {
-            this.user = user;
+        public AccessTokenInfo(String sub, String accessToken, Date expiration, String scope, String clientId, String iss) {
+            this.sub = sub;
             this.accessToken = accessToken;
             this.expiration = expiration;
             this.scope = scope;
