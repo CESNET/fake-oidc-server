@@ -110,7 +110,7 @@ public class OidcController {
         m.put("introspection_endpoint", urlPrefix + INTROSPECTION_ENDPOINT);
         m.put("scopes_supported", Arrays.asList("openid", "profile", "email")); // RECOMMENDED
         m.put("response_types_supported", Arrays.asList("id_token token", "code")); // REQUIRED
-        m.put("grant_types_supported", Arrays.asList("authorization_code", "implicit")); //OPTIONAL
+        m.put("grant_types_supported", Arrays.asList("authorization_code", "client_credentials", "implicit")); //OPTIONAL
         m.put("subject_types_supported", Collections.singletonList("public")); // REQUIRED
         m.put("id_token_signing_alg_values_supported", Arrays.asList("RS256", "none")); // REQUIRED
         m.put("claims_supported", Arrays.asList("sub", "iss", "name", "family_name", "given_name", "preferred_username", "email"));
