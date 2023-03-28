@@ -21,6 +21,12 @@ oidc:
       given_name: "Martin"
       family_name: "Kuba"
       email: "makub@ics.muni.cz"
+  clients:
+    default:
+      id: "submission-server"
+      secret: "testKey"
+      
+      
 
 spring.profiles.active: ssl
 

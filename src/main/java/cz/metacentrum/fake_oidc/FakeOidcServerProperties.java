@@ -4,7 +4,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
-import java.util.List;
 import java.util.Map;
 
 @Component
@@ -12,6 +11,7 @@ import java.util.Map;
 public class FakeOidcServerProperties {
 
     private Map<String,User> users;
+    private Map<String, Client> clients;
     private long tokenExpirationSeconds;
 
     public Map<String, User> getUsers() {
@@ -20,6 +20,13 @@ public class FakeOidcServerProperties {
 
     public void setUsers(Map<String, User> users) {
         this.users = users;
+    }
+    public Map<String, Client>  getClients() {
+        return clients;
+    }
+
+    public void setClients(Map<String, Client>  clients) {
+        this.clients = clients;
     }
 
     public long getTokenExpirationSeconds() {
@@ -34,6 +41,7 @@ public class FakeOidcServerProperties {
     public String toString() {
         return "FakeOidcServerProperties{" +
                 "users=" + users +
+                "clients=" + clients +
                 ", tokenExpirationSeconds=" + tokenExpirationSeconds +
                 '}';
     }

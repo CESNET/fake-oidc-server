@@ -278,7 +278,14 @@ public class OidcController {
             }
         }
         
-        // TODO: check client_id and client_secret to hardcoded/configured values?
+        if(this.serverProperties.getClients().values().stream().filter(element -> 
+        element.id().equals(client_id) && element.secret().equals(client_secret))
+        .findFirst().isEmpty()) {
+            log.info("wrong client_id and client_secret combination");
+            return response401();
+        }
+        
+        
         
         // return access token
         Map<String, String> map = new LinkedHashMap<>();
