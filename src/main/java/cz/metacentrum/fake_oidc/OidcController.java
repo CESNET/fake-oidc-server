@@ -65,6 +65,9 @@ public class OidcController {
     public static final String USERINFO_ENDPOINT = "/userinfo";
     public static final String JWKS_ENDPOINT = "/jwks";
     public static final String INTROSPECTION_ENDPOINT = "/introspect";
+    
+    // only for testing
+    public static final String TEST_GETUSERTOKEN = "/testing/getusertoken";
 
     private JWSSigner signer;
     private JWKSet publicJWKSet;
@@ -358,6 +361,29 @@ public class OidcController {
             log.info("wrong user and password combination");
             return response401();
         }
+    }
+    
+    @RequestMapping(value = TEST_GETUSERTOKEN, method = RequestMethod.GET)
+    public ResponseEntity<?> getUserToken(@RequestParam String userName,
+                                        @RequestParam String client_id,
+                                        @RequestParam String scope,
+                                        UriComponentsBuilder uriBuilder) throws JOSEException, NoSuchAlgorithmException {
+        
+        User user = this.serverProperties.getUsers().get(userName);
+        if(user == null) {
+            return response401();
+        }
+        
+        String iss = uriBuilder.replacePath("/").build().encode().toUriString();
+        String accessToken = createAccessToken(iss, userName, client_id, scope);
+        
+        Map<String, String> map = new LinkedHashMap<>();
+        map.put("access_token", accessToken);
+        map.put("token_type", "Bearer");
+        map.put("expires_in", String.valueOf(serverProperties.getTokenExpirationSeconds()));
+        map.put("scope", scope);
+        map.put("id_token", createIdToken(iss, user, client_id, UUID.randomUUID().toString(), accessToken));
+        return ResponseEntity.ok(map);
     }
 
     private String createAuthorizationCode(String code_challenge, String code_challenge_method, String client_id, String redirect_uri, User user, String iss, String scope, String nonce) {
