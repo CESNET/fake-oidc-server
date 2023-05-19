@@ -238,11 +238,11 @@ public class OidcController {
             }
         }
         // return access token
-        Map<String, String> map = new LinkedHashMap<>();
+        Map<String, Object> map = new LinkedHashMap<>();
         String accessToken = createAccessToken(codeInfo.iss, codeInfo.user, codeInfo.client_id, codeInfo.scope);
         map.put("access_token", accessToken);
         map.put("token_type", "Bearer");
-        map.put("expires_in", String.valueOf(serverProperties.getTokenExpirationSeconds()));
+        map.put("expires_in", serverProperties.getTokenExpirationSeconds());
         map.put("scope", codeInfo.scope);
         map.put("id_token", createIdToken(codeInfo.iss, codeInfo.user, codeInfo.client_id, codeInfo.nonce, accessToken));
         return ResponseEntity.ok(map);
